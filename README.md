@@ -7,6 +7,12 @@ css sprite
 2. 在原css代码中为切片添加`background-position`属性
 3. 在引用雪碧图的位置打上当然雪碧图md5后的版本号
 
+## 使用
+
+```
+npm install css-sprites
+```
+
 ## 调用
 
 ```

@@ -1,6 +1,7 @@
 var spritesmith = require('spritesmith')
 var path = require('path');
 var crypto = require('crypto');
+var cssom = require('cssom');
 
 var unit = require('./lib/unit')
 
@@ -46,8 +47,15 @@ var sprite = function(file, options){
 	}
 	//
 	function getSliceData(paths, data){
+
+		var styleRules = cssom.parse(data);
+		styleRules.cssRules.forEach(function(cssRule){
+			mixBackground(cssRule.style);
+		});
+		data = styleSheetToString(styleRules);
+
 		var slicePath = fixPath(options.imagepath),
-			imgRegx = /background(?:-image)?\s*:[^;]*?url\((["\']?)(?!https?|\/)?[^\)]+\1\)[^};]*;?/ig,
+			imgRegx = /background(?:-image)?\s*:[^;]*?url\((["\']?)(?!https?|\/)?[^\)]+\1\)(\s*no-repeat)[^};]*;?/ig,
 			urlRegx = /\((["\']?)([^\)]+)\1\)/i,
 			cssList = data.match(imgRegx),
 			sliceHash = {},
@@ -91,17 +99,59 @@ var sprite = function(file, options){
 			engine: options.engine,
 			src: sliceList
 		}, function(err, ret){
-			if(err)
+			if(err){
+				console.log(err);
 				return;
-
+			}
 			fn && fn(ret);
 		})
 	}
+	/**
+	 * background整合
+	 * @param style
+	 */
+	function mixBackground(style){
+		if(style.hasOwnProperty('background')) return;
+		var background = ''
+		var positionText = style.removeProperty('background-position-x') + ' ' +
+			style.removeProperty('background-position-y');
+		style.setProperty('background-position', positionText.trim(), null);
+
+		var toMergeAttrs = [
+			'background-color', 'background-image', 'background-position',
+			'background-repeat','background-attachment',
+			'background-origin', 'background-clip'
+		];
+		for(var i = 0, item; item = toMergeAttrs[i]; i++) {
+			if(style.hasOwnProperty(item)){
+				background += style.removeProperty(item) + ' ';
+			}
+		}
+		style.setProperty('background', background.trim(), null);
+
+	}
+	/**
+	 * 把 StyleSheet 的内容转换成 css 字符串
+	 * @param  {StyleSheet} styleSheet
+	 * @return {String} css 字符串
+	 */
+	function styleSheetToString(styleSheet) {
+		var result = "";
+		var rules = styleSheet.cssRules, rule;
+		for (var i=0; i<rules.length; i++) {
+			rule = rules[i];
+			if(rule instanceof cssom.CSSImportRule){
+				result += styleSheetToString(rule.styleSheet) + '\n';
+			}else{
+				result += rule.cssText + '\n';
+			}
+		}
+		return result;
+	};
 	// css 更新
 	function replaceCSS(data, sliceData, coords){
-
 		var semicolonRegx = /;\s*$/,
-			urlRegx = /\((["\']?)([^\)]+)\1\)/i,
+			urlRegx = /\((["|']?)([^\)]+)\1\)(\s*no-repeat)/i,
 			spriteImg = options.spritepath + path.basename(sliceData.destImg) + sliceData.destImgStamp,
 			cssHash = sliceData.cssHash,
 			cssList = sliceData.cssList;
@@ -109,7 +159,7 @@ var sprite = function(file, options){
 		cssList.forEach(function(css){
 			var coordData = coords[cssHash[css]];
 			if(coordData){
-				var newCss = css.replace(urlRegx, '('+ spriteImg +')');
+				var newCss = css.replace(urlRegx, '('+ spriteImg +')$3');
 				// Add a semicolon if needed
 				if(!semicolonRegx.test(newCss)){
 					newCss += ';';
@@ -141,15 +191,16 @@ var sprite = function(file, options){
 		}
 
 		var destFile = file.dest + filename + file.ext;
+		src = path.relative(process.cwd(), src);
 		var fileData = unit.file.read(src);
 		var sliceData = getSliceData(path.dirname(src), fileData);
 		var sliceList = sliceData.sliceList;
 
 		var destImg = sliceData.destImg = fixPath(path.join(options.spritedest, filename + '.png'));
 
-
 		if(!sliceList || !sliceList.length){
 			unit.file.copy(src, destFile);
+			console.log('Done! [Copy] ->' + sliceList);
 			return;
 		}
 		// 创建sprite的回调
