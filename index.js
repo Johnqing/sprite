@@ -155,7 +155,8 @@ var sprite = function(file, options){
 			spriteImg = options.spritepath + path.basename(sliceData.destImg) + sliceData.destImgStamp,
 			cssHash = sliceData.cssHash,
 			cssList = sliceData.cssList;
-
+		// fixed xx:xx
+		data = data.replace(/\:\s?/g, ': ');
 		cssList.forEach(function(css){
 			var coordData = coords[cssHash[css]];
 			if(coordData){

@@ -1,7 +1,7 @@
 {
   "name": "css-sprites",
   "description": "css sprite工具",
-  "version": "0.0.2",
+  "version": "0.0.3",
   "author": "John qing <csssnow@gmail.com>",
   "license": "BSD",
   "main": "index.js",
